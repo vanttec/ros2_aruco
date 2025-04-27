@@ -57,7 +57,7 @@ def angle_calculate(pt1,pt2, trigger = 0):  # function which returns angle betwe
 def detect_Aruco(img):  #returns the detected aruco list dictionary with id: corners
     aruco_list = {}
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_5X5_250)   #creating aruco_dict with 5x5 bits with max 250 ids..so ids ranges from 0-249
+    aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_5X5_1000)   #creating aruco_dict with 5x5 bits with max 250 ids..so ids ranges from 0-249
     parameters = cv2.aruco.DetectorParameters_create()  #refer opencv page for clarification
     corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict, parameters = parameters)
     if len(corners):    #returns no of arucos
@@ -258,13 +258,23 @@ class ArucoNode(rclpy.node.Node):
                 rot_matrix[0:3, 0:3] = cv2.Rodrigues(np.array(rvecs[i][0]))[0]
                 quat = tf_transformations.quaternion_from_matrix(rot_matrix)
 
-                det_aruco_list = detect_Aruco(cv_image)
-                robot_state = calculate_Robot_State(cv_image, det_aruco_list)
-                pose.orientation.w = float(robot_state[list(robot_state.keys())[0]][2])
+                try:
+                  det_aruco_list = detect_Aruco(cv_image)
+                  robot_state = calculate_Robot_State(cv_image, det_aruco_list)
+                  if (robot_state == {}) or robot_state.keys() == [] or i >= len(robot_state.keys()):
+                      self.get_logger().warn("No robot state detected")
+                      continue
+                  else:
+                    pose.orientation.w = float(robot_state[list(robot_state.keys())[i]][2])
+
+                except Exception as e:
+                  self.get_logger().warn("Error in pose calculation")
+                  self.get_logger().warn(str(e))
+                  continue
 
                 pose_array.poses.append(pose)
                 markers.poses.append(pose)
-                markers.marker_ids.append(marker_id[0])
+                markers.marker_ids.append(marker_ids[i][0])
 
             self.poses_pub.publish(pose_array)
             self.markers_pub.publish(markers)
